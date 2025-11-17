@@ -20,7 +20,9 @@ module Data.Bson (
   Value(..), Val(..), fval, typed, typeOfVal,
   -- * Special Bson value types
   Binary(..), Function(..), UUID(..), MD5(..), UserDefined(..),
+  Encrypted(..), Compressed(..), Sensitive(..), Vector(..),
   Regex(..), Javascript(..), Symbol(..), MongoStamp(..), MinMaxKey(..),
+  Decimal128(..),
   -- ** ObjectId
   ObjectId(..), timestamp, genObjectId, showHexLen
 ) where
@@ -36,7 +38,7 @@ import Control.Monad (foldM)
 import Data.Bits (shift, (.|.))
 import Data.Int (Int32, Int64)
 import Data.IORef (IORef, newIORef, atomicModifyIORef)
-import Data.List (find, findIndex)
+import Data.List (find)
 import Data.Maybe (maybeToList, mapMaybe, fromJust, fromMaybe)
 import Data.Time.Clock (UTCTime)
 import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime,
@@ -53,7 +55,6 @@ import qualified Data.ByteString.Char8 as SC
 import qualified Text.ParserCombinators.ReadP as R
 import qualified Text.ParserCombinators.ReadPrec as R (lift, readS_to_Prec)
 
-import Control.Monad.Identity (runIdentity)
 import Network.BSD (getHostName)
 import Data.Text (Text)
 
@@ -122,10 +123,13 @@ exclude keys = filter (\(k := _) -> notElem k keys)
 
 merge :: Document -> Document -> Document
 -- ^ Merge documents with preference given to first one when both have the same label. I.e. for every (k := v) in first argument, if k exists in second argument then replace its value with v, otherwise add (k := v) to second argument.
-merge es docInitial = foldl f docInitial es
-  where f doc (k := v) = case findIndex ((k ==) . label) doc of
-                          Nothing -> doc ++ [k := v]
-                          Just i -> let (x, _ : y) = splitAt i doc in x ++ [k := v] ++ y
+merge es docInitial = foldl replace docInitial es
+
+replace :: Document -> Field -> Document
+replace [] new = [new]
+replace (o@(k := _) : fs) new@(k' := _)
+    | k == k'   = new : fs
+    | otherwise = o : replace fs new
 
 -- * Field
 
@@ -159,6 +163,10 @@ data Value = Float Double
            | Fun Function
            | Uuid UUID
            | Md5 MD5
+           | Encrypt Encrypted
+           | Compress Compressed
+           | Sens Sensitive
+           | Vec Vector
            | UserDef UserDefined
            | ObjId ObjectId
            | Bool Bool
@@ -170,6 +178,7 @@ data Value = Float Double
            | Int32 Int32
            | Int64 Int64
            | Stamp MongoStamp
+           | Dec128 Decimal128
            | MinMax MinMaxKey
            deriving (Typeable, Eq, Ord)
 
@@ -187,6 +196,10 @@ fval f v = case v of
             Fun x     -> f x
             Uuid x    -> f x
             Md5 x     -> f x
+            Encrypt x -> f x
+            Compress x -> f x
+            Sens x    -> f x
+            Vec x     -> f x
             UserDef x -> f x
             ObjId x   -> f x
             Bool x    -> f x
@@ -197,6 +210,7 @@ fval f v = case v of
             Sym x     -> f x
             Int32 x   -> f x
             Int64 x   -> f x
+            Dec128 x  -> f x
             Stamp x   -> f x
             MinMax x  -> f x
 
@@ -305,6 +319,26 @@ instance Val MD5 where
   cast' (Md5 x) = Just x
   cast' _       = Nothing
 
+instance Val Compressed where
+  val               = Compress
+  cast' (Compress x) = Just x
+  cast' _           = Nothing
+
+instance Val Sensitive where
+  val               = Sens
+  cast' (Sens x) = Just x
+  cast' _           = Nothing
+
+instance Val Encrypted where
+  val               = Encrypt
+  cast' (Encrypt x) = Just x
+  cast' _           = Nothing
+
+instance Val Vector where
+  val               = Vec
+  cast' (Vec x) = Just x
+  cast' _           = Nothing
+
 instance Val UserDefined where
   val               = UserDef
   cast' (UserDef x) = Just x
@@ -364,6 +398,11 @@ instance Val Int64 where
   cast' (Float x) = Just (round x)
   cast' _         = Nothing
 
+instance Val Decimal128 where
+  val              = Dec128
+  cast' (Dec128 x) = Just x
+  cast' _          = Nothing
+
 instance Val Int where
   val n           = maybe (Int64 $ fromIntegral n) Int32 (fitInt n)
   cast' (Int32 x) = Just (fromIntegral x)
@@ -409,7 +448,17 @@ newtype UUID = UUID S.ByteString  deriving (Typeable, Show, Read, Eq, Ord)
 
 newtype MD5 = MD5 S.ByteString  deriving (Typeable, Show, Read, Eq, Ord)
 
-newtype UserDefined = UserDefined S.ByteString  deriving (Typeable, Show, Read, Eq, Ord)
+newtype Encrypted = Encrypted S.ByteString deriving (Typeable, Show, Read, Eq, Ord)
+
+newtype Compressed = Compressed S.ByteString deriving (Typeable, Show, Read, Eq, Ord)
+
+newtype Sensitive = Sensitive S.ByteString deriving (Typeable, Show, Read, Eq, Ord)
+
+newtype Vector = Vector S.ByteString deriving (Typeable, Show, Read, Eq, Ord)
+
+data UserDefined = UserDefined Word8 S.ByteString  deriving (Typeable, Show, Read, Eq, Ord)
+
+newtype Decimal128 = Decimal128 S.ByteString deriving (Typeable, Show, Read, Eq, Ord)
 
 -- ** Regex
 

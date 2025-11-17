@@ -1,5 +1,5 @@
 Name:          bson
-Version:       0.4.0.1
+Version:       1.1.0.0
 Synopsis:      BSON documents are JSON-like objects with a standard binary
                encoding.
 Description:   A BSON Document is an untyped (dynamically type-checked) record.
@@ -43,6 +43,8 @@ Library
   else
      -- "Network.BSD" has been moved into its own package `network-bsd`
      build-depends: network-bsd >= 2.7 && < 2.9
+
+  Ghc-options:      -Wall
 
   Default-Language: Haskell2010
   Default-Extensions: BangPatterns, CPP

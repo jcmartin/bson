@@ -17,7 +17,7 @@ import Prelude hiding (length, concat)
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative ((<$>), (<*>), (<*))
 #endif
-import Control.Monad (when)
+--import Control.Monad (when)
 import Data.Binary.Get (Get, runGet, getWord8, getWord32be, getWord64be,
                         getWord32le, getWord64le, getLazyByteStringNul,
                         getLazyByteString, getByteString, lookAhead)
@@ -40,7 +40,10 @@ import qualified Data.Text.Encoding as TE
 
 import Data.Bson (Document, Value(..), ObjectId(..), MongoStamp(..), Symbol(..),
                   Javascript(..), UserDefined(..), Regex(..), MinMaxKey(..),
-                  Binary(..), UUID(..), Field(..), MD5(..), Function(..))
+                  Binary(..), UUID(..), Field(..), MD5(..), Function(..),
+                  Encrypted(..), Compressed(..), Sensitive(..), Vector(..),
+                  Decimal128(..)
+                  )
 
 putField :: Field -> Put
 -- ^ Write binary representation of element
@@ -53,7 +56,11 @@ putField (k := v) = case v of
   Fun (Function x)              -> putTL 0x05 >> putBinary 0x01 x
   Uuid (UUID x)                 -> putTL 0x05 >> putBinary 0x04 x
   Md5 (MD5 x)                   -> putTL 0x05 >> putBinary 0x05 x
-  UserDef (UserDefined x)       -> putTL 0x05 >> putBinary 0x80 x
+  Encrypt (Encrypted x)         -> putTL 0x05 >> putBinary 0x06 x
+  Compress (Compressed x)       -> putTL 0x05 >> putBinary 0x07 x
+  Sens (Sensitive x)            -> putTL 0x05 >> putBinary 0x08 x
+  Vec (Vector x)                -> putTL 0x05 >> putBinary 0x09 x
+  UserDef (UserDefined s x)     -> putTL 0x05 >> putBinary s x
   ObjId x                       -> putTL 0x07 >> putObjectId x
   Bool x                        -> putTL 0x08 >> putBool x
   UTC x                         -> putTL 0x09 >> putUTC x
@@ -67,6 +74,7 @@ putField (k := v) = case v of
   Int32 x                       -> putTL 0x10 >> putInt32 x
   Int64 x                       -> putTL 0x12 >> putInt64 x
   Stamp x                       -> putTL 0x11 >> putMongoStamp x
+  Dec128 x                      -> putTL 0x13 >> putDec128 x
   MinMax x                      ->
     case x of
      MinKey -> putTL 0xFF
@@ -92,8 +100,14 @@ getField = do
            0x03 -> return $ Uuid (UUID b)
            0x04 -> return $ Uuid (UUID b)
            0x05 -> return $ Md5 (MD5 b)
-           0x80 -> return $ UserDef (UserDefined b)
-           _ -> fail $ "unknown Bson binary subtype " ++ show s
+           0x06 -> return $ Encrypt (Encrypted b)
+           0x07 -> return $ Compress (Compressed b)
+           0x08 -> return $ Sens (Sensitive b)
+           0x09 -> return $ Vec (Vector b)
+           _ ->
+            if s >= 0x80
+                then return $ UserDef (UserDefined s b)
+                else fail $ "unknown Bson binary subtype " ++ show s
         0x06 -> return Null
         0x07 -> ObjId <$> getObjectId
         0x08 -> Bool <$> getBool
@@ -107,18 +121,28 @@ getField = do
         0x10 -> Int32 <$> getInt32
         0x11 -> Stamp <$> getMongoStamp
         0x12 -> Int64 <$> getInt64
+        0x13 -> Dec128 <$> getDec128
         0xFF -> return (MinMax MinKey)
         0x7F -> return (MinMax MaxKey)
         _ -> fail $ "unknown Bson value type " ++ show t
   return (k := v)
 
+putTag :: Word8 -> Put
 putTag = putWord8
+
+getTag :: Get Word8
 getTag = getWord8
 
+putLabel :: Text -> Put
 putLabel = putCString
+
+getLabel :: Get Text
 getLabel = getCString
 
+putDouble :: Double -> Put
 putDouble = putFloat64le
+
+getDouble :: Get Double
 getDouble = getFloat64le
 
 putInt32 :: Int32 -> Put
@@ -151,7 +175,7 @@ getString :: Get Text
 getString = do
   len <- subtract 1 <$> getInt32
   b <- getByteString (fromIntegral len)
-  getWord8
+  _ <- getWord8
   return $ TE.decodeUtf8 b
 
 putDocument :: Document -> Put
@@ -171,7 +195,7 @@ getDocument = do
    else (:) <$> getField <*> getFields
 
 putArray :: [Value] -> Put
-putArray vs = putDocument (zipWith f [0..] vs)
+putArray vs = putDocument (zipWith f [0::Int ..] vs)
   where f i v = (T.pack $! show i) := v
 
 getArray :: Get [Value]
@@ -209,19 +233,34 @@ getBinary = do
   x <- getByteString (fromIntegral len')
   return (t, x)-}
 
+putRegex :: Regex -> Put
 putRegex (Regex x y) = putCString x >> putCString y
+
+getRegex :: Get Regex
 getRegex = Regex <$> getCString <*> getCString
 
+putSymbol :: Symbol -> Put
 putSymbol (Symbol x) = putString x
+
+getSymbol :: Get Symbol
 getSymbol = Symbol <$> getString
 
+putMongoStamp :: MongoStamp -> Put
 putMongoStamp (MongoStamp x) = putInt64 x
+
+getMongoStamp :: Get MongoStamp
 getMongoStamp = MongoStamp <$> getInt64
 
+putObjectId :: ObjectId -> Put
 putObjectId (Oid x y) = putWord32be x >> putWord64be y
+
+getObjectId :: Get ObjectId
 getObjectId = Oid <$> getWord32be <*> getWord64be
 
+putBool :: Bool -> Put
 putBool x = putWord8 (if x then 1 else 0)
+
+getBool :: Get Bool
 getBool = (> 0) <$> getWord8
 
 putUTC :: UTCTime -> Put
@@ -232,6 +271,12 @@ getUTC :: Get UTCTime
 -- stored as milliseconds since Unix epoch
 getUTC = posixSecondsToUTCTime . (/ 1000) . fromIntegral <$> getInt64
 
+putDec128 :: Decimal128 -> Put
+putDec128 (Decimal128 b) = putByteString b
+
+getDec128 :: Get Decimal128
+getDec128 = Decimal128 <$> getByteString 16
+
 putClosure :: Text -> Document -> Put
 putClosure x y = let b = runPut (putString x >> putDocument y) in do
   putInt32 $ (toEnum . fromEnum) (LC.length b + 4)  -- including this length field
@@ -239,7 +284,7 @@ putClosure x y = let b = runPut (putString x >> putDocument y) in do
 
 getClosure :: Get (Text, Document)
 getClosure = do
-  getInt32
+  _ <- getInt32
   x <- getString
   y <- getDocument
   return (x, y)

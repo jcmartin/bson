@@ -64,7 +64,10 @@ instance Arbitrary Regex where
     arbitrary = Regex <$> arbitrary <*> arbitrary
 
 instance Arbitrary UserDefined where
-    arbitrary = UserDefined <$> arbitrary
+    arbitrary = do
+        s <- arbitrary
+        let arbSubType = 128 + s `mod` 128
+        UserDefined arbSubType <$> arbitrary
 
 instance Arbitrary MD5 where
     arbitrary = MD5 <$> arbitrary
