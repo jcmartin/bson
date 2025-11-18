@@ -20,7 +20,7 @@ import Control.Applicative ((<$>), (<*>), (<*))
 --import Control.Monad (when)
 import Data.Binary.Get (Get, runGet, getWord8, getWord32be, getWord64be,
                         getWord32le, getWord64le, getLazyByteStringNul,
-                        getLazyByteString, getByteString, lookAhead)
+                        getLazyByteString, getByteString)
 import Data.Binary.Put (Put, runPut, putWord8, putWord32le, putWord64le,
                         putWord32be, putWord64be, putLazyByteString,
                         putByteString)
@@ -82,10 +82,9 @@ putField (k := v) = case v of
  where
   putTL t = putTag t >> putLabel k
 
-getField :: Get Field
+getField :: Word8 -> Get Field
 -- ^ Read binary representation of Element
-getField = do
-  t <- getTag
+getField t = do
   k <- getLabel
   v <- case t of
         0x01 -> Float <$> getDouble
@@ -189,10 +188,13 @@ getDocument = do
   len <- subtract 4 <$> getInt32
   b <- getLazyByteString (fromIntegral len)
   return (runGet getFields b)
- where
-  getFields = lookAhead getWord8 >>= \done -> if done == 0
-   then return []
-   else (:) <$> getField <*> getFields
+
+getFields :: Get [Field]
+getFields = do
+    tag <- getTag
+    if tag == 0
+        then return []
+        else (:) <$> getField tag <*> getFields
 
 putArray :: [Value] -> Put
 putArray vs = putDocument (zipWith f [0::Int ..] vs)

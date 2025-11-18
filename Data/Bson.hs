@@ -6,6 +6,7 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -46,6 +47,7 @@ import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime,
 import Data.Time.Format ()  -- for Show and Read instances of UTCTime
 import Data.Typeable hiding (cast)
 import Data.Word (Word8, Word16, Word32, Word64)
+import GHC.Generics(Generic)
 import Numeric (readHex, showHex)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (Read(..))
@@ -135,7 +137,7 @@ replace (o@(k := _) : fs) new@(k' := _)
 
 infix 0 :=, =:, =?
 
-data Field = (:=) {label :: !Label, value :: Value}  deriving (Typeable, Eq, Ord)
+data Field = (:=) {label :: !Label, value :: Value}  deriving (Typeable, Generic, Eq, Ord)
 -- ^ A BSON field is a named value, where the name (label) is a string and the value is a BSON 'Value'
 
 (=:) :: (Val v) => Label -> v -> Field
@@ -180,7 +182,7 @@ data Value = Float Double
            | Stamp MongoStamp
            | Dec128 Decimal128
            | MinMax MinMaxKey
-           deriving (Typeable, Eq, Ord)
+           deriving (Typeable, Generic, Eq, Ord)
 
 instance Show Value where
   showsPrec d = fval (showsPrec d)
@@ -440,51 +442,51 @@ fitInt n =
 
 -- ** Binary types
 
-newtype Binary = Binary S.ByteString  deriving (Typeable, Show, Read, Eq, Ord)
+newtype Binary = Binary S.ByteString  deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
-newtype Function = Function S.ByteString  deriving (Typeable, Show, Read, Eq, Ord)
+newtype Function = Function S.ByteString  deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
-newtype UUID = UUID S.ByteString  deriving (Typeable, Show, Read, Eq, Ord)
+newtype UUID = UUID S.ByteString  deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
-newtype MD5 = MD5 S.ByteString  deriving (Typeable, Show, Read, Eq, Ord)
+newtype MD5 = MD5 S.ByteString  deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
-newtype Encrypted = Encrypted S.ByteString deriving (Typeable, Show, Read, Eq, Ord)
+newtype Encrypted = Encrypted S.ByteString deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
-newtype Compressed = Compressed S.ByteString deriving (Typeable, Show, Read, Eq, Ord)
+newtype Compressed = Compressed S.ByteString deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
-newtype Sensitive = Sensitive S.ByteString deriving (Typeable, Show, Read, Eq, Ord)
+newtype Sensitive = Sensitive S.ByteString deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
-newtype Vector = Vector S.ByteString deriving (Typeable, Show, Read, Eq, Ord)
+newtype Vector = Vector S.ByteString deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
-data UserDefined = UserDefined Word8 S.ByteString  deriving (Typeable, Show, Read, Eq, Ord)
+data UserDefined = UserDefined Word8 S.ByteString  deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
-newtype Decimal128 = Decimal128 S.ByteString deriving (Typeable, Show, Read, Eq, Ord)
+newtype Decimal128 = Decimal128 S.ByteString deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
 -- ** Regex
 
-data Regex = Regex Text Text  deriving (Typeable, Show, Read, Eq, Ord)
+data Regex = Regex Text Text  deriving (Typeable, Generic, Show, Read, Eq, Ord)
 -- ^ The first string is the regex pattern, the second is the regex options string. Options are identified by characters, which must be listed in alphabetical order. Valid options are *i* for case insensitive matching, *m* for multiline matching, *x* for verbose mode, *l* to make \\w, \\W, etc. locale dependent, *s* for dotall mode (\".\" matches everything), and *u* to make \\w, \\W, etc. match unicode.
 
 -- ** Javascript
 
-data Javascript = Javascript Document Text deriving (Typeable, Show, Eq, Ord)
+data Javascript = Javascript Document Text deriving (Typeable, Generic, Show, Eq, Ord)
 -- ^ Javascript code with possibly empty environment mapping variables to values that the code may reference
 
 -- ** Symbol
 
-newtype Symbol = Symbol Text  deriving (Typeable, Show, Read, Eq, Ord)
+newtype Symbol = Symbol Text  deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
 -- ** MongoStamp
 
-newtype MongoStamp = MongoStamp Int64  deriving (Typeable, Show, Read, Eq, Ord)
+newtype MongoStamp = MongoStamp Int64  deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
 -- ** MinMax
 
-data MinMaxKey = MinKey | MaxKey  deriving (Typeable, Show, Read, Eq, Ord)
+data MinMaxKey = MinKey | MaxKey  deriving (Typeable, Generic, Show, Read, Eq, Ord)
 
 -- ** ObjectId
 
-data ObjectId = Oid {-# UNPACK #-} !Word32 {-# UNPACK #-} !Word64  deriving (Typeable, Eq, Ord)
+data ObjectId = Oid {-# UNPACK #-} !Word32 {-# UNPACK #-} !Word64  deriving (Typeable, Generic, Eq, Ord)
 -- ^ A BSON ObjectID is a 12-byte value consisting of a 4-byte timestamp (seconds since epoch), a 3-byte machine id, a 2-byte process id, and a 3-byte counter. Note that the timestamp and counter fields must be stored big endian unlike the rest of BSON. This is because they are compared byte-by-byte and we want to ensure a mostly increasing order.
 
 instance Show ObjectId where

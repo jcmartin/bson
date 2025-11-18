@@ -36,6 +36,7 @@ Library
                     , data-binary-ieee754
                     , mtl >= 2
                     , text >= 0.11
+                    , flatparse
 
   if flag(_old-network)
      -- "Network.BSD" is only available in network < 2.9
@@ -44,13 +45,14 @@ Library
      -- "Network.BSD" has been moved into its own package `network-bsd`
      build-depends: network-bsd >= 2.7 && < 2.9
 
-  Ghc-options:      -Wall
+  Ghc-options:      -Wall -O2 -fllvm
 
   Default-Language: Haskell2010
   Default-Extensions: BangPatterns, CPP
 
   Exposed-modules:  Data.Bson,
-                    Data.Bson.Binary
+                    Data.Bson.Binary,
+                    Data.Bson.FlatParse
 
 Source-repository head
     Type:     git
@@ -62,6 +64,7 @@ Test-suite bson-tests
   Main-is:          Tests.hs
   Other-modules:    Data.Bson.Binary.Tests
                     Data.Bson.Tests
+                    Data.Bson.FlatParse.Tests
                     Data.Bson.Arbitrary
   Ghc-options:      -Wall -fno-warn-orphans
 
@@ -77,6 +80,25 @@ Test-suite bson-tests
                     , bytestring
                     , text
                     , binary
+                    , flatparse
+
+  Default-Language: Haskell2010
+  Default-Extensions: CPP
+
+benchmark bson-bench
+  Type:             exitcode-stdio-1.0
+  Hs-source-dirs:   bench
+  Main-is:          Main.hs
+  Ghc-options:      -Wall -fno-warn-orphans -O2 -fllvm
+
+  Build-depends:    bson
+                    , base
+                    , binary
+                    , flatparse
+                    , criterion
+                    , bytestring
+                    , deepseq
+
 
   Default-Language: Haskell2010
   Default-Extensions: CPP
