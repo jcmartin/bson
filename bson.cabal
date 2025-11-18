@@ -62,6 +62,7 @@ Test-suite bson-tests
   Main-is:          Tests.hs
   Other-modules:    Data.Bson.Binary.Tests
                     Data.Bson.Tests
+                    Data.Bson.Arbitrary
   Ghc-options:      -Wall -fno-warn-orphans
 
   -- NB: we depend here on the intra-package lib:bson componant
@@ -75,6 +76,7 @@ Test-suite bson-tests
                     , time
                     , bytestring
                     , text
+                    , binary
 
   Default-Language: Haskell2010
   Default-Extensions: CPP
