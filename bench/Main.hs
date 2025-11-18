@@ -9,7 +9,7 @@ import Data.Binary.Put(runPut)
 import Data.Bson
 import Data.Bson.Binary(getDocument,putDocument)
 import Data.Bson.FlatParse(parseDocument)
-import qualified Data.ByteString.Lazy as BS
+import qualified Data.ByteString as BS
 import FlatParse.Basic(runParser,Result(..))
 
 instance NFData Field
@@ -90,11 +90,11 @@ onlyDocNull =
 
 benchBinary :: (forall a b . NFData b => (a -> b) -> a -> Benchmarkable) -> BS.ByteString -> Benchmark
 benchBinary f =
-    bench "Binary" . f (runGet getDocument)
+    bench "Binary" . f (runGet getDocument) . BS.fromStrict
 
 benchFlatParse :: (forall a b . NFData b => (a -> b) -> a -> Benchmarkable) ->  BS.ByteString -> Benchmark
 benchFlatParse f =
-    bench "Flat" . f (fromResult . runParser parseDocument) . BS.toStrict
+    bench "Flat" . f (fromResult . runParser parseDocument)
 
 fromResult :: Result e a -> a
 fromResult x = case x of
@@ -103,7 +103,7 @@ fromResult x = case x of
 
 benchParsers :: String -> Document -> Benchmark
 benchParsers name doc =
-    let input = runPut $ putDocument doc
+    let input = BS.toStrict $ runPut $ putDocument doc
     in bgroup name
         [bgroup "Normal Form"
             [benchBinary nf input
